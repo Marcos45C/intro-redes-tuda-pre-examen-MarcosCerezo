@@ -1,0 +1,45 @@
+## PRE-PARCIAL: INTRODUCCIÓN A LAS REDES (TUDA - UNTDF)
+
+**Fecha:** 17 de Junio  
+**Duración Total:** 3 horas  
+**Modalidad:** Mixta (Parte 1: Preguntas de opciones múltiples / Parte 2: Desarrollo en Laboratorio)
+
+---
+
+## PARTE 1: Evaluación Teórica 
+*Instrucciones: Selecciona la opción correcta marcando con una 'X' dentro del checkbox `[ ]` basándote en los estándares de red (IETF, OSI) y el comportamiento del Sistema Operativo.*
+
+### 1. Mecánica de Bloqueos en Sockets TCP
+Analizando un servidor multihilo en Python, sabemos que el hilo principal se encuentra esperando conexiones. Si un cliente inicia exitosamente el *Three-way handshake*, el servidor le asigna un hilo exclusivo para su atención. Si ese cliente, una vez conectado, **se queda en silencio y nunca envía datos**, ¿en qué línea del código del hilo asignado se congelará la ejecución y qué recurso de infraestructura se ve afectado?
+- [ ] a) Se bloquea en `server.accept()`, consumiendo ancho de banda de la interfaz de red de la VM.
+- [X] b) Se bloquea en `conn.recv(1024)`, manteniendo un hilo activo en el kernel y un descriptor de archivo (File Descriptor) abierto en el sistema operativo.
+- [ ] c) Se bloquea en `conn.send()`, saturando el buffer de transmisión de la capa de transporte.
+- [ ] d) El código no se bloquea; Python cierra el socket automáticamente por timeout de capa de aplicación.
+
+### 2. Sockets vs. Protocolo de Transporte (Concurrencia)
+En el servidor base, la verificación del límite de clientes activos (`if threading.active_count() <= MAX_CLIENTS:`) se ejecuta **después** de que la función `server.accept()` retorna el socket de la conexión. Desde la perspectiva de la infraestructura de red y el protocolo TCP: ¿En qué estado se encuentra la conexión del cliente sobrante antes de que el código decida ignorarlo o cerrarlo?
+- [ ] a) La conexión está en tránsito; el *Three-way handshake* se encuentra pausado en el segundo paso (SYN-ACK).
+- [X] b) La conexión ya está completamente establecida en la pila TCP/IP del Sistema Operativo, ya que el handshake terminó antes de que `accept()` extraiga la conexión de la cola del kernel.
+- [ ] c) El cliente todavía no sabe si se conectó, porque el protocolo TCP espera a que el método `thread.start()` de Python le dé autorización.
+- [ ] d) La conexión fue rechazada por el Firewall del sistema operativo automáticamente debido a que superó el límite de la directiva `listen()`.
+
+### 3. Delimitación de Mensajes en Capa 7 (Diseño de Protocolos)
+En nuestro laboratorio de transferencia de archivos por UDP (`srv_udp_file.py`), utilizamos el literal de bytes `b"DONE"` como marcador de Fin de Archivo (EOF). Si un alumno intenta transferir una imagen binaria cuyos datos contienen la secuencia exacta de bytes correspondiente a los caracteres "D, O, N, E", ¿cuál será el impacto en la infraestructura del servicio?
+- [ ] a) El protocolo UDP detectará el error mediante el Checksum de la capa de transporte y retransmitirá el fragmento corrupto.
+- [ ] b) El servidor ignorará los bytes y continuará la lectura, ya que UDP es un protocolo orientado a flujos continuos (*streams*).
+- [X] c) El servidor interpretará prematuramente que la transmisión finalizó, cerrando el archivo y provocando una pérdida de integridad (archivo corrupto/truncado). 
+- [ ] d) El socket del cliente lanzará un error de tipo `BrokenPipeError` al no poder codificar caracteres ASCII en un flujo binario.
+
+### 4. Anatomía de Protocolos de Aplicación (HTTP)
+Un desarrollador backend observa en las herramientas de diagnóstico (F12) que al intentar realizar un login enviando un JSON en el cuerpo del mensaje utilizando el método `GET`, el servidor web (Nginx/Apache) responde inmediatamente con un código `405 Method Not Allowed`. Según el estándar del IETF (RFC 9110), ¿cuál es la razón técnica de este rechazo?
+- [ ] a) El método `GET` cifra automáticamente el cuerpo, y el servidor no cuenta con las llaves SSL/TLS para decodificarlo.
+- [ ] b) El código `405` indica que la URI no existe en el servidor físico.
+- [X] c) El método `GET` está definido estructuralmente para solicitar recursos (semántica segura e idempotente) y no debe procesar ni depender de un cuerpo de petición (Request Body); se debe utilizar `POST` para el envío de credenciales. 
+- [ ] d) El switch de la red LAN bloqueó el paquete porque los métodos `GET` superaron el tamaño máximo de la MTU (1500 bytes).
+
+### 5. Diagnóstico de Servicios y Estados de Sockets
+Tu servidor TCP en Python se cierra abruptamente por una excepción. Al intentar levantarlo de inmediato en la misma terminal de tu VM Linux, el intérprete lanza: `OSError: [Errno 98] Address already in use`. Si ejecutas la herramienta de diagnóstico `netstat -tuln`, verás que el puerto sigue ocupado. ¿En qué estado de la máquina de estados de TCP se encuentra el puerto y cómo se soluciona desde el código de Python?
+- [ ] a) El puerto quedó en estado `LISTEN`; se soluciona cambiando el puerto por uno de rango efímero (ej. 60000).
+- [X] b) El puerto quedó en estado `TIME_WAIT` (esperando el cierre formal del socket por seguridad); se soluciona configurando la opción de socket `SO_REUSEADDR` en `True` antes de hacer el `bind()`. 
+- [ ] c) El puerto quedó en estado `ESTABLISHED`; se soluciona reinventando la placa de red virtual de VirtualBox.
+- [ ] d) El puerto quedó en estado `SYN_SENT`; se soluciona enviando un paquete UDP para limpiar la caché del socket.
